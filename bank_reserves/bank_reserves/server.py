@@ -60,7 +60,7 @@ model_params = {
 }
 
 
-cavas_element = CanvasGrid(person_portrayal, 20, 20, 500, 500)
+canvas_element = CanvasGrid(person_portrayal, 20, 20, 500, 500)
 
 
 chart_element = ChartModule(
@@ -71,5 +71,11 @@ chart_element = ChartModule(
     ]
 )
 
-
+# 创建 Mesa ModularServer 的实例
+server = ModularServer(
+    BankReserves,
+    [canvas_element, chart_element],
+    "银行储蓄模型",
+    model_params=model_params
+)
 
