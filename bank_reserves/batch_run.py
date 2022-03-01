@@ -1,4 +1,4 @@
-from bank_reserves.agents import Bank, Person
+from bank_reserves.model import get_num_rich_agents
 import itertools
 from mesa import Model
 from bank_reserves.model import BankReserves
