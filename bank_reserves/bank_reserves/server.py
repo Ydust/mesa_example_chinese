@@ -43,11 +43,6 @@ def person_portrayal(agent):
 
 # 用户可以设置参数的字典，那些可以映射到模型__init__的参数
 model_params = {
-    """
-    Slider input slider_option = UserSettableParameter(
-         ‘slider’, ‘My Slider’, value=123, min_value=10, max_value=200, step=0.1)
-    """
-    
     "init_people": UserSettableParameter(
         "slider", "People", 25, 1, 200, description="初始化人数"
      ),

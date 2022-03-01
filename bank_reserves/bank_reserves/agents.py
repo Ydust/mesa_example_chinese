@@ -1,188 +1,181 @@
+"""
+The following code was adapted from the Bank Reserves model included in Netlogo
+Model information can be found at: http://ccl.northwestern.edu/netlogo/models/BankReserves
+Accessed on: November 2, 2017
+Author of NetLogo code:
+    Wilensky, U. (1998). NetLogo Bank Reserves model.
+    http://ccl.northwestern.edu/netlogo/models/BankReserves.
+    Center for Connected Learning and Computer-Based Modeling,
+    Northwestern University, Evanston, IL.
+"""
+
 from mesa import Agent
 from bank_reserves.random_walk import RandomWalker
 
 
 class Bank(Agent):
     def __init__(self, unique_id, model, reserve_percent=50):
+        # initialize the parent class with required parameters
         super().__init__(unique_id, model)
-        # 未偿还贷款的总值
+        # for tracking total value of loans outstanding
         self.bank_loans = 0
-        # 存款中百分之多少拿来做银行准备金，单位：%
+        """percent of deposits the bank must keep in reserves - this is a
+           UserSettableParameter in server.py"""
         self.reserve_percent = reserve_percent
-        # 存款总值
+        # for tracking total value of deposits
         self.deposits = 0
-        # 准备金
+        # total amount of deposits in reserve
         self.reserves = (self.reserve_percent / 100) * self.deposits
-        # 银行目前能够贷款的金额
+        # amount the bank is currently able to loan
         self.bank_to_loan = 0
-        # 更新银行的准备金和可以贷款的金额；
-        # 每当一个人平衡他们的账目时都会调用这个
-        # Person.balance_books() 见下文
+
+    """update the bank's reserves and amount it can loan;
+       this is called every time a person balances their books
+       see below for Person.balance_books()"""
 
     def bank_balance(self):
         self.reserves = (self.reserve_percent / 100) * self.deposits
-        # 能够贷款的金额 = 存款 - （准备金 + 未偿还贷款总值）
         self.bank_to_loan = self.deposits - (self.reserves + self.bank_loans)
 
 
-# RandomWalker 的子类，它是 Mesa Agent 的子类
+# subclass of RandomWalker, which is subclass to Mesa Agent
 class Person(RandomWalker):
     def __init__(self, unique_id, pos, model, moore, bank, rich_threshold):
-        # 使用需要的参数初始化父类
+        # init parent class with required parameters
         super().__init__(unique_id, pos, model, moore=moore)
-        # 每人的储蓄金
+        # the amount each person has in savings
         self.savings = 0
-        # 每人的未偿还贷款
+        # total loan amount person has outstanding
         self.loans = 0
-        """每人的钱包里有 1~a 这个范围的随机金额，也可以自定义范围"""
-        # random.ranint(a, b) 随机产生[a, b]之间的整数
+        """start everyone off with a random amount in their wallet from 1 to a
+           user settable rich threshold amount"""
         self.wallet = self.random.randint(1, rich_threshold + 1)
-        # 存款 - 贷款 参考 balance_books()
+        # savings minus loans, see balance_books() below
         self.wealth = 0
-        # 交易的对象 参考 do_business()
+        # person to trade with, see do_business() below
         self.customer = 0
-        # 个人银行，在 __inint__ 处设置，模型中所有人的个人银行是相相同的
+        # person's bank, set at __init__, all people have the same bank in this model
         self.bank = bank
 
     def do_business(self):
-        """检查个体是否有存款，钱包里有多少钱，银行可以贷款给他多少钱"""
+        """check if person has any savings, any money in wallet, or if the
+        bank can loan them any money"""
         if self.savings > 0 or self.wallet > 0 or self.bank.bank_to_loan > 0:
-            # 在我的位置创建人员列表
+            # create list of people at my location (includes self)
             my_cell = self.model.grid.get_cell_list_contents([self.pos])
-            # 检查是否有其他人在我的位置
+            # check if other people are at my location
             if len(my_cell) > 1:
-                # 在 while 循环中，把用户设置为 self
+                # set customer to self for while loop condition
                 customer = self
                 while customer == self:
-                    """从我所在位置的人中随机选择一个人进行交易"""
+                    """select a random person from the people at my location
+                    to trade with"""
                     customer = self.random.choice(my_cell)
-                # 50%的概率与附近的客户交易
+                # 50% chance of trading with customer
                 if self.random.randint(0, 1) == 0:
-                    # 50% 的概率交易金额为5美元
+                    # 50% chance of trading $5
                     if self.random.randint(0, 1) == 0:
-                        # 从我的钱包里给客户 5美元 （可能导致负钱包）
+                        # give customer $5 from my wallet (may result in negative wallet)
                         customer.wallet += 5
                         self.wallet -= 5
-                    # 50% 的机会交易 2美元
+                    # 50% chance of trading $2
                     else:
-                        # 从我的钱包里给客户 2美元（可能导致负钱包）
+                        # give customer $2 from my wallet (may result in negative wallet)
                         customer.wallet += 2
                         self.wallet -= 2
 
     def balance_books(self):
-        # 检查钱包是否因与客户交易后为负
+        # check if wallet is negative from trading with customer
         if self.wallet < 0:
-            # 如果钱包里的钱是负数，检查存款是否可以支付余额
+            # if negative money in wallet, check if my savings can cover the balance
             if self.savings >= (self.wallet * -1):
-                """如果我的存款可以支付余额，就从我的存款中提取足够的钱，使我的钱包余额为 0"""
+                """if my savings can cover the balance, withdraw enough
+                money from my savings so that my wallet has a 0 balance"""
                 self.withdraw_from_savings(self.wallet * -1)
-            # 如果我的存款无法支付我钱包的负余额
+            # if my savings cannot cover the negative balance of my wallet
             else:
-                # 检查我是否有存款
+                # check if i have any savings
                 if self.savings > 0:
-                    # 如果我有存款，就全部取出以减少我钱包的负余额
+                    """if i have savings, withdraw all of it to reduce my
+                    negative balance in my wallet"""
                     self.withdraw_from_savings(self.savings)
-                    # 记录银行现在可以贷出多少钱
-                    temp_loan = self.bank.bank_to_loan
-                    """检查银行是否可以贷出足够的钱来支付我钱包里剩余的负余额"""
-                    if temp_loan >= (self.wallet * -1):
-                        """如果银行可以贷出足够的钱来支付我钱包的负余额，就为剩余的负余额贷款"""
-                        self.take_out_loan(self.wallet * -1)
-                    else:
-                        """如果银行不能贷出支付我钱包负余额的钱，那么就贷出银行现在可以贷款的总金额"""
-                        self.take_out_loan(temp_loan)
-        else:
-            # 如果我的钱包里有与客户交易的钱，请将其存到银行存款
-            self.deposit_to_savings(self.wallet)
-            # 检查我是否有未偿还的贷款，我是否有存款
-            if self.loans > 0 and self.savings > 0:
-                # 检查我的存款是否可以偿还我的贷款
-                if self.savings >= self.loans:
-                    self.withdraw_from_savings(self.loans)
-                    self.repay_a_loan(self.loans)
-                # 如果我的存款不能偿还我的贷款
+                # record how much money the bank can loan out right now
+                temp_loan = self.bank.bank_to_loan
+                """check if the bank can loan enough money to cover the
+                   remaining negative balance in my wallet"""
+                if temp_loan >= (self.wallet * -1):
+                    """if the bank can loan me enough money to cover
+                    the remaining negative balance in my wallet, take out a
+                    loan for the remaining negative balance"""
+                    self.take_out_loan(self.wallet * -1)
                 else:
-                    # 用我的存款还清部分贷款
-                    self.withdraw_from_savings(self.wallet)
-                    self.repay_a_loan(self.loans)
-        # 计算 我的财富 = 存款 - 贷款
+                    """if the bank cannot loan enough money to cover the negative
+                    balance of my wallet, then take out a loan for the
+                    total amount the bank can loan right now"""
+                    self.take_out_loan(temp_loan)
+        else:
+            """if i have money in my wallet from trading with customer, deposit
+            it to my savings in the bank"""
+            self.deposit_to_savings(self.wallet)
+        # check if i have any outstanding loans, and if i have savings
+        if self.loans > 0 and self.savings > 0:
+            # check if my savings can cover my outstanding loans
+            if self.savings >= self.loans:
+                # payoff my loans with my savings
+                self.withdraw_from_savings(self.loans)
+                self.repay_a_loan(self.loans)
+            # if my savings won't cover my loans
+            else:
+                # pay off part of my loans with my savings
+                self.withdraw_from_savings(self.savings)
+                self.repay_a_loan(self.wallet)
+        # calculate my wealth
         self.wealth = self.savings - self.loans
 
-    # 存入银行
+    # part of balance_books()
     def deposit_to_savings(self, amount):
-        # 从我的钱包中取钱存入银行
+        # take money from my wallet and put it in savings
         self.wallet -= amount
         self.savings += amount
-        # 增加银行的存款
+        # increase bank deposits
         self.bank.deposits += amount
 
-    # 从银行取钱
+    # part of balance_books()
     def withdraw_from_savings(self, amount):
-        # 从银行取钱放入我的钱包
+        # put money in my wallet from savings
         self.wallet += amount
         self.savings -= amount
-        # 减少银行存款
+        # decrease bank deposits
         self.bank.deposits -= amount
 
-    # 偿还贷款
+    # part of balance_books()
     def repay_a_loan(self, amount):
-        # 从我的钱包里偿还部分或全部贷款
+        # take money from my wallet to pay off all or part of a loan
         self.loans -= amount
         self.wallet -= amount
-        # 增加银行现在可以贷款的金额
+        # increase the amount the bank can loan right now
         self.bank.bank_to_loan += amount
-        # 减少未偿还银行的贷款金额
-        self.bank_loans -= amount
+        # decrease the bank's outstanding loans
+        self.bank.bank_loans -= amount
 
-    # 从银行贷款
+    # part of balance_books()
     def take_out_loan(self, amount):
-        # 从银行贷出的钱放到钱包里，增加我的未偿还贷款金额
+        """borrow from the bank to put money in my wallet, and increase my
+        outstanding loans"""
         self.loans += amount
         self.wallet += amount
-        # 减少从银行可以贷款的金额
+        # decresae the amount the bank can loan right now
         self.bank.bank_to_loan -= amount
-        # 增加银行的未偿还贷款
+        # increase the bank's outstanding loans
         self.bank.bank_loans += amount
 
-    # 为 model.BankReservesModel.schedule.step() 中的每个 Agent 调用 step()
+    # step is called for each agent in model.BankReservesModel.schedule.step()
     def step(self):
+        # move to a cell in my Moore neighborhood
         self.random_move()
+        # trade
         self.do_business()
+        # deposit money or take out a loan
         self.balance_books()
+        # update the bank's reserves and the amount it can loan right now
         self.bank.bank_balance()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
